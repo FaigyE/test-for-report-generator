@@ -3,80 +3,63 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import type { CustomerInfo, InstallationData } from "@/lib/types"
+import { ChevronLeft } from "lucide-react"
+import type { ConsolidatedUnit } from "@/lib/excel-parser"
 
 interface CsvPreviewData {
-  [key: string]: string | undefined
+  [key: string]: string | number
 }
 
 export default function CsvPreviewPage() {
   const router = useRouter()
   const [rawData, setRawData] = useState<CsvPreviewData[]>([])
-  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [selectedUnitColumn, setSelectedUnitColumn] = useState<string>("")
-  const [availableColumns, setAvailableColumns] = useState<string[]>([])
-  const [selectedNotesColumns, setSelectedNotesColumns] = useState<string[]>([])
-  const [selectedCells, setSelectedCells] = useState<Record<string, string[]>>({})
   const [previewData, setPreviewData] = useState<CsvPreviewData[]>([])
+  const [customerInfo, setCustomerInfo] = useState<any>(null)
+  const [selectedUnitColumn, setSelectedUnitColumn] = useState<string>("")
+  const [selectedNotesColumns, setSelectedNotesColumns] = useState<string[]>([])
+  const [selectedCells, setSelectedCells] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(true)
 
-  // Helper function to get proper case for column names
-  const getProperCase = (str: string): string => {
-    if (!str) return str
-
-    // Handle common abbreviations and special cases
-    const specialCases: Record<string, string> = {
-      gpm: "GPM",
-      gpf: "GPF",
-      bldg: "Building",
-      apt: "Apartment",
-      id: "ID",
-      usa: "USA",
-      us: "US",
-      ca: "CA",
-      ny: "NY",
-      tx: "TX",
-      fl: "FL",
+  const getUniqueColumns = (data: CsvPreviewData[]): string[] => {
+    if (!data || data.length === 0) {
+      console.log("CSV Preview: No data available for column detection")
+      return []
     }
 
-    // Split by common delimiters and process each part
-    return str
-      .split(/[\s\-_/]+/)
-      .map((word) => {
-        const lowerWord = word.toLowerCase()
-        if (specialCases[lowerWord]) {
-          return specialCases[lowerWord]
-        }
-        // Capitalize first letter, keep rest as is (preserving existing case)
-        return word.charAt(0).toUpperCase() + word.slice(1)
-      })
-      .join(" ")
-  }
+    const allColumns = new Set<string>()
 
-  // Helper function to get unique columns with proper case
-  const getUniqueColumns = (data: CsvPreviewData[]): string[] => {
-    if (!data || data.length === 0) return []
+    // Get all possible column names from the first few rows
+    const rowsToCheck = Math.min(50, data.length) // Check up to 50 rows instead of 10
 
-    const allKeys = Object.keys(data[0])
-    const uniqueColumns: string[] = []
-    const seenLowerCase = new Set<string>()
+    console.log(`CSV Preview: Checking ${rowsToCheck} rows for column detection`)
 
-    for (const key of allKeys) {
-      if (!key || key.trim() === "") continue
-
-      const lowerKey = key.toLowerCase().trim()
-      if (!seenLowerCase.has(lowerKey)) {
-        seenLowerCase.add(lowerKey)
-        uniqueColumns.push(key) // Keep original case from CSV
+    for (let i = 0; i < rowsToCheck; i++) {
+      const row = data[i]
+      if (row && typeof row === "object") {
+        Object.keys(row).forEach((key) => {
+          if (key && key.trim() !== "" && key !== "undefined" && key !== "null") {
+            allColumns.add(key.trim())
+          }
+        })
       }
     }
 
-    return uniqueColumns
+    const columns = Array.from(allColumns).sort()
+    console.log(`CSV Preview: Found ${columns.length} unique columns:`, columns)
+
+    // Log sample data for each column to help debug
+    columns.forEach((col) => {
+      const sampleValues = data
+        .slice(0, 3)
+        .map((row) => row[col])
+        .filter((val) => val !== undefined && val !== null && val !== "")
+      console.log(`CSV Preview: Column "${col}" sample values:`, sampleValues)
+    })
+
+    return columns
   }
 
   // Load data from localStorage
@@ -86,6 +69,7 @@ export default function CsvPreviewPage() {
       const storedCustomerInfo = localStorage.getItem("customerInfo")
 
       if (!storedRawData || !storedCustomerInfo) {
+        console.log("CSV Preview: No stored data found, redirecting to upload")
         router.push("/")
         return
       }
@@ -93,107 +77,83 @@ export default function CsvPreviewPage() {
       const parsedRawData = JSON.parse(storedRawData)
       const parsedCustomerInfo = JSON.parse(storedCustomerInfo)
 
+      console.log("CSV Preview: Loaded raw data with", parsedRawData.length, "rows")
       setRawData(parsedRawData)
       setCustomerInfo(parsedCustomerInfo)
 
       if (parsedRawData.length > 0) {
         const columns = getUniqueColumns(parsedRawData)
-        setAvailableColumns(columns)
 
-        // Auto-detect unit column
-        const unitColumn = findUnitColumn(columns)
-        if (unitColumn) {
-          setSelectedUnitColumn(unitColumn)
-        }
+        const unitColumn =
+          columns.find((col) => {
+            const lowerCol = col.toLowerCase()
+            return (
+              lowerCol.includes("unit") ||
+              lowerCol.includes("apt") ||
+              lowerCol.includes("apartment") ||
+              lowerCol.includes("room") ||
+              lowerCol.includes("suite")
+            )
+          }) || columns[0]
 
-        // Show all rows for preview
+        console.log("CSV Preview: Auto-selected unit column:", unitColumn)
+        setSelectedUnitColumn(unitColumn)
         setPreviewData(parsedRawData)
       }
     } catch (error) {
-      console.error("Error loading data:", error)
+      console.error("CSV Preview: Error loading data:", error)
       router.push("/")
     } finally {
       setLoading(false)
     }
   }, [router])
 
-  // Auto-detect unit column
-  const findUnitColumn = (columns: string[]): string | null => {
-    // Filter out empty columns first
-    const validColumns = columns.filter((col) => col && col.trim() !== "")
-
-    // First, look for exact matches (case insensitive)
-    for (const col of validColumns) {
-      const lowerCol = col.toLowerCase()
-      if (lowerCol === "unit" || lowerCol === "bldg/unit" || lowerCol === "building/unit") {
-        return col
-      }
+  // Handle notes column selection
+  const handleNotesColumnToggle = (column: string, checked: boolean) => {
+    if (checked) {
+      setSelectedNotesColumns((prev) => [...prev, column])
+    } else {
+      setSelectedNotesColumns((prev) => prev.filter((col) => col !== column))
     }
-
-    // Then look for columns containing unit-related keywords
-    const unitKeywords = ["unit", "apt", "apartment", "room"]
-    for (const col of validColumns) {
-      const colLower = col.toLowerCase()
-      for (const keyword of unitKeywords) {
-        if (colLower.includes(keyword)) {
-          return col
-        }
-      }
-    }
-
-    return null
   }
 
-  // Handle cell selection for notes
-const handleCellToggle = (rowIndex: number, column: string, value: string) => {
-  const unitValue = previewData[rowIndex][selectedUnitColumn]
-  if (!unitValue) return
-
-  setSelectedCells((prev) => {
-    const unitCells = prev[unitValue] || []
-    const cellIdentifier = `${value}` // Removed column name
-
-    const isSelected = unitCells.includes(cellIdentifier)
-
-    if (isSelected) {
-      // Remove cell
-      const updatedCells = unitCells.filter((cell) => cell !== cellIdentifier)
-      if (updatedCells.length === 0) {
-        const { [unitValue]: removed, ...rest } = prev
-        return rest
-      }
-      return { ...prev, [unitValue]: updatedCells }
-    } else {
-      // Add cell
-      return { ...prev, [unitValue]: [...unitCells, cellIdentifier] }
-    }
-  })
-}
-
-  // Check if a cell is selected
-  const isCellSelected = (rowIndex: number, column: string, value: string): boolean => {
+  // Handle cell selection for custom notes
+  const handleCellSelection = (rowIndex: number, column: string, checked: boolean) => {
+    const cellKey = `${rowIndex}-${column}`
     const unitValue = previewData[rowIndex][selectedUnitColumn]
-    if (!unitValue) return false
 
-    const unitCells = selectedCells[unitValue] || []
-    const cellIdentifier = `${getProperCase(column)}: ${value}`
-    return unitCells.includes(cellIdentifier)
+    if (checked) {
+      const cellValue = previewData[rowIndex][column]
+      setSelectedCells((prev) => ({
+        ...prev,
+        [cellKey]: `Unit ${unitValue}: ${column} = ${cellValue}`,
+      }))
+    } else {
+      setSelectedCells((prev) => {
+        const updated = { ...prev }
+        delete updated[cellKey]
+        return updated
+      })
+    }
   }
 
   // Process data and continue to report
   const handleContinue = () => {
-    if (!selectedUnitColumn) {
-      alert("Please select a unit column")
-      return
-    }
+    console.log("CSV Preview: Processing data with selected columns:", selectedNotesColumns)
 
     // Filter and process the data
     const processedData = processInstallationData(rawData, selectedUnitColumn, selectedNotesColumns, selectedCells)
 
+    const consolidatedData = createConsolidatedDataFromRaw(rawData, selectedUnitColumn)
+
     // Store processed data
     localStorage.setItem("installationData", JSON.stringify(processedData.installationData))
     localStorage.setItem("toiletCount", JSON.stringify(processedData.toiletCount))
+    localStorage.setItem("selectedNotesColumns", JSON.stringify(selectedNotesColumns))
+    localStorage.setItem("selectedCells", JSON.stringify(selectedCells))
+    localStorage.setItem("consolidatedData", JSON.stringify(consolidatedData))
 
+    console.log("CSV Preview: Saved processed data and consolidated data, navigating to report")
     // Navigate to report
     router.push("/report")
   }
@@ -203,122 +163,180 @@ const handleCellToggle = (rowIndex: number, column: string, value: string) => {
     data: CsvPreviewData[],
     unitColumn: string,
     notesColumns: string[],
-    cellSelections: Record<string, string[]>,
+    selectedCells: Record<string, string>,
   ) => {
     const filteredData = []
-    let toiletCount = 0
 
-    // Get toilet column info
-    const getToiletInfo = () => {
+    // Count toilets
+    const countToilets = (data: CsvPreviewData[]) => {
       if (!data || data.length === 0) return { count: 0, totalCount: 0 }
 
       const firstItem = data[0]
-      const toiletColumn = Object.keys(firstItem).find((key) => key.startsWith("Toilets Installed:"))
-
-      if (!toiletColumn) return { count: 0, totalCount: 0 }
-
-      const totalCountMatch = toiletColumn.match(/Toilets Installed:\s*(\d+)/)
-      const totalCount = totalCountMatch ? Number.parseInt(totalCountMatch[1]) : 0
+      const toiletColumns = Object.keys(firstItem).filter(
+        (key) => key.toLowerCase().includes("toilet") || key.toLowerCase().includes("wc"),
+      )
 
       let count = 0
       data.forEach((item) => {
-        if (item[toiletColumn] && item[toiletColumn] !== "") {
-          count++
-        }
+        toiletColumns.forEach((col) => {
+          const value = item[col]?.toString().toLowerCase().trim()
+          if (value === "1" || value === "yes" || value === "installed" || value === "x") {
+            count++
+          }
+        })
       })
 
-      return { count, totalCount }
+      return { count, totalCount: data.length }
     }
 
-    const { totalCount } = getToiletInfo()
-    toiletCount = totalCount
-
-    // Process each row
     for (let i = 0; i < data.length; i++) {
       const item = data[i]
-      const unitValue = item[unitColumn]
+      const unitValue = item[unitColumn]?.toString().trim()
 
-      // Stop at first empty unit
-      if (!unitValue || unitValue.trim() === "") {
-        console.log(`Stopping at row ${i + 1} - empty unit`)
+      if (!unitValue || unitValue === "") {
+        console.log(`CSV STOPPING: Found empty unit at row ${i + 1}. Processed ${filteredData.length} valid rows.`)
         break
       }
 
-      const trimmedUnit = unitValue.trim()
-
-      // Skip invalid units
-      const lowerUnit = trimmedUnit.toLowerCase()
-      const invalidValues = ["total", "sum", "average", "avg", "count", "header", "n/a", "na"]
-      if (invalidValues.some((val) => lowerUnit.includes(val))) {
-        console.log(`Skipping invalid unit: ${trimmedUnit}`)
-        continue
+      // Create processed item with notes from selected columns
+      const processedItem: any = {
+        Unit: unitValue,
+        ...item,
       }
 
-      // Create processed item
-      const processedItem: InstallationData = {
-        Unit: trimmedUnit,
-        "Shower Head": item["Shower Head"] || "",
-        "Bathroom aerator": item["Bathroom aerator"] || "",
-        "Kitchen Aerator": item["Kitchen Aerator"] || "",
-        "Leak Issue Kitchen Faucet": item["Leak Issue Bath Faucet"] || "",
-        "Leak Issue Bath Faucet": item["Leak Issue Bath Faucet"] || "",
-        "Tub Spout/Diverter Leak Issue": item["Tub Spout/Diverter Leak Issue"] || "",
-        Notes: "",
-      }
-
-      // Add all original columns
-      Object.keys(item).forEach((key) => {
-        if (item[key] !== undefined) {
-          processedItem[key] = item[key]
+      // Add notes from selected columns
+      let combinedNotes = ""
+      notesColumns.forEach((col) => {
+        const noteValue = item[col]?.toString().trim()
+        if (noteValue && noteValue !== "") {
+          combinedNotes += noteValue + " "
         }
       })
 
-      // Add notes from selected columns
-      let additionalNotes = ""
-
-      // Add notes from selected columns
-      notesColumns.forEach((column) => {
-        const value = item[column]
-        if (value && value.trim() !== "") {
-          const sentenceCaseValue = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
-          additionalNotes += `${sentenceCaseValue}. `
+      // Add selected cell notes
+      Object.entries(selectedCells).forEach(([cellKey, cellNote]) => {
+        const [rowIndex] = cellKey.split("-")
+        if (Number.parseInt(rowIndex) === i) {
+          combinedNotes += cellNote + " "
         }
       })
 
-      // Add notes from selected cells
-      const unitCells = cellSelections[trimmedUnit] || []
-      unitCells.forEach((cellInfo) => {
-        additionalNotes += `${cellInfo}. `
-      })
-
-      if (additionalNotes) {
-        processedItem.Notes = additionalNotes.trim()
+      if (combinedNotes.trim()) {
+        processedItem.Notes = combinedNotes.trim()
       }
 
       filteredData.push(processedItem)
     }
 
-    // Sort by unit number
+    // Sort data
     filteredData.sort((a, b) => {
-      const numA = Number.parseInt(a.Unit)
-      const numB = Number.parseInt(b.Unit)
+      const unitA = a.Unit || ""
+      const unitB = b.Unit || ""
+      return unitA.localeCompare(unitB, undefined, { numeric: true, sensitivity: "base" })
+    })
+
+    // Save the selected cell data to localStorage for the notes section to use
+    const toiletData = countToilets(data)
+
+    return {
+      installationData: filteredData,
+      toiletCount: toiletData.count,
+    }
+  }
+
+  const createConsolidatedDataFromRaw = (data: CsvPreviewData[], unitColumn: string): ConsolidatedUnit[] => {
+    console.log("CSV Preview: Creating consolidated data from", data.length, "rows")
+
+    // Group rows by unit
+    const unitGroups: { [unit: string]: CsvPreviewData[] } = {}
+
+    data.forEach((row) => {
+      const unit = row[unitColumn]?.toString().trim()
+      if (unit && unit !== "") {
+        if (!unitGroups[unit]) {
+          unitGroups[unit] = []
+        }
+        unitGroups[unit].push(row)
+      }
+    })
+
+    console.log("CSV Preview: Grouped into", Object.keys(unitGroups).length, "units")
+
+    // Create consolidated units by counting installations across all rows for each unit
+    const consolidated: ConsolidatedUnit[] = []
+
+    Object.entries(unitGroups).forEach(([unit, rows]) => {
+      const kitchenColumns = new Set<string>()
+      const bathroomColumns = new Set<string>()
+      const showerColumns = new Set<string>()
+
+      console.log(`CSV Preview: Processing unit ${unit} with ${rows.length} rows`)
+
+      rows.forEach((row, rowIndex) => {
+        Object.entries(row).forEach(([columnName, value]) => {
+          if (value && isAeratorInstalled(String(value))) {
+            const lowerColumnName = String(columnName).toLowerCase()
+
+            if (lowerColumnName.includes("kitchen")) {
+              kitchenColumns.add(columnName)
+              console.log(`  Found kitchen aerator in row ${rowIndex}, column "${columnName}": ${value}`)
+            } else if (lowerColumnName.includes("bathroom") || lowerColumnName.includes("bath")) {
+              bathroomColumns.add(columnName)
+              console.log(`  Found bathroom aerator in row ${rowIndex}, column "${columnName}": ${value}`)
+            } else if (lowerColumnName.includes("shower")) {
+              showerColumns.add(columnName)
+              console.log(`  Found shower in row ${rowIndex}, column "${columnName}": ${value}`)
+            }
+          }
+        })
+      })
+
+      const kitchenAeratorCount = kitchenColumns.size
+      const bathroomAeratorCount = bathroomColumns.size
+      const showerHeadCount = showerColumns.size
+
+      console.log(
+        `CSV Preview: Unit ${unit} totals - Kitchen: ${kitchenAeratorCount}, Bathroom: ${bathroomAeratorCount}, Shower: ${showerHeadCount}`,
+      )
+
+      consolidated.push({
+        unit,
+        kitchenAeratorCount,
+        bathroomAeratorCount,
+        showerHeadCount,
+      })
+    })
+
+    // Sort consolidated data
+    return consolidated.sort((a, b) => {
+      const numA = Number.parseInt(a.unit)
+      const numB = Number.parseInt(b.unit)
 
       if (!isNaN(numA) && !isNaN(numB)) {
         return numA - numB
       }
 
-      return a.Unit.localeCompare(b.Unit, undefined, { numeric: true, sensitivity: "base" })
+      return a.unit.localeCompare(b.unit, undefined, { numeric: true, sensitivity: "base" })
     })
+  }
 
-    // Save the selected cell data to localStorage for the notes section to use
-    console.log("Saving selected cells to localStorage:", cellSelections)
-    localStorage.setItem("selectedCells", JSON.stringify(cellSelections))
-    localStorage.setItem("selectedNotesColumns", JSON.stringify(notesColumns))
+  // Aerator detection function
+  const isAeratorInstalled = (value: string): boolean => {
+    if (!value || typeof value !== "string") return false
 
-    return {
-      installationData: filteredData,
-      toiletCount,
-    }
+    const lowerValue = value.toLowerCase().trim()
+
+    return (
+      lowerValue === "male" ||
+      lowerValue === "female" ||
+      lowerValue === "insert" ||
+      lowerValue.includes("gpm") ||
+      lowerValue === "1" ||
+      lowerValue === "2" ||
+      lowerValue === "yes" ||
+      lowerValue === "installed" ||
+      lowerValue === "x"
+    )
   }
 
   if (loading) {
@@ -336,47 +354,101 @@ const handleCellToggle = (rowIndex: number, column: string, value: string) => {
           <CardContent className="pt-6">
             <h2 className="text-xl font-semibold mb-4">No Data Found</h2>
             <p className="mb-4">No data found. Please go back and upload a file.</p>
-            <Button onClick={() => router.push("/")}>Back to Form</Button>
+            <Button onClick={() => router.push("/")}>Back to Upload</Button>
           </CardContent>
         </Card>
       </div>
     )
   }
 
+  const availableColumns = getUniqueColumns(previewData)
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
         <Button variant="outline" onClick={() => router.push("/")}>
           <ChevronLeft className="mr-2 h-4 w-4" />
-          Back to Form
+          Back to Upload
         </Button>
         <h1 className="text-2xl font-bold">Data Preview & Configuration</h1>
         <Button onClick={handleContinue} disabled={!selectedUnitColumn}>
           Continue to Report
-          <ChevronRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+        <p className="text-sm font-medium text-blue-800">
+          Found {availableColumns.length} columns in your data. Select which columns contain notes below.
+        </p>
+        <p className="text-xs text-blue-600 mt-1">
+          Check the browser console (F12) for detailed column information if you're missing expected columns.
+        </p>
+      </div>
+
+      {/* Data Preview */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>
+            Data Preview ({previewData.length} rows, {availableColumns.length} columns)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-gray-50">
+                  {availableColumns.map((column) => (
+                    <th key={column} className="border border-gray-300 px-2 py-1 text-left font-medium">
+                      {column}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {previewData.slice(0, 10).map((row, rowIndex) => (
+                  <tr key={rowIndex} className={rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                    {availableColumns.map((column) => (
+                      <td key={column} className="border border-gray-300 px-2 py-1">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={selectedCells[`${rowIndex}-${column}`] !== undefined}
+                            onCheckedChange={(checked) => handleCellSelection(rowIndex, column, checked as boolean)}
+                          />
+                          <span className="truncate max-w-[100px]" title={row[column]?.toString()}>
+                            {row[column]?.toString() || ""}
+                          </span>
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {previewData.length > 10 && (
+            <p className="text-sm text-gray-500 mt-2">Showing first 10 rows of {previewData.length} total rows</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Column Configuration */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Unit Column Selection */}
         <Card>
           <CardHeader>
             <CardTitle>Unit Column</CardTitle>
           </CardHeader>
           <CardContent>
-            <Label htmlFor="unit-column">Select the column that contains unit numbers:</Label>
             <Select value={selectedUnitColumn} onValueChange={setSelectedUnitColumn}>
               <SelectTrigger>
                 <SelectValue placeholder="Select unit column" />
               </SelectTrigger>
               <SelectContent>
-                {availableColumns
-                  .filter((column) => column && column.trim() !== "") // Filter out empty columns
-                  .map((column) => (
-                    <SelectItem key={column} value={column}>
-                      {getProperCase(column)}
-                    </SelectItem>
-                  ))}
+                {availableColumns.map((column) => (
+                  <SelectItem key={column} value={column}>
+                    {column}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </CardContent>
@@ -385,135 +457,53 @@ const handleCellToggle = (rowIndex: number, column: string, value: string) => {
         {/* Notes Columns Selection */}
         <Card>
           <CardHeader>
-            <CardTitle>Additional Notes Columns</CardTitle>
+            <CardTitle>Notes Columns ({availableColumns.length} available)</CardTitle>
           </CardHeader>
           <CardContent>
-            <Label>Select columns to include in notes:</Label>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {availableColumns
-                .filter((col) => col !== selectedUnitColumn)
-                .map((column) => (
-                  <div key={column} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`notes-${column}`}
-                      checked={selectedNotesColumns.includes(column)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedNotesColumns((prev) => [...prev, column])
-                        } else {
-                          setSelectedNotesColumns((prev) => prev.filter((col) => col !== column))
-                        }
-                      }}
-                    />
-                    <Label htmlFor={`notes-${column}`} className="text-sm">
-                      {getProperCase(column)}
-                    </Label>
-                  </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Selected Cells Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Selected Cells</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-2">
-              Click on cells in the preview to add them to notes for specific units.
-            </p>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {Object.entries(selectedCells).map(([unit, cells]) => (
-                <div key={unit} className="text-sm">
-                  <strong>Unit {unit}:</strong>
-                  <ul className="ml-4 text-xs">
-                    {cells.map((cell, index) => (
-                      <li key={index}>• {cell}</li>
-                    ))}
-                  </ul>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {availableColumns.map((column) => (
+                <div key={column} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`notes-${column}`}
+                    checked={selectedNotesColumns.includes(column)}
+                    onCheckedChange={(checked) => handleNotesColumnToggle(column, checked as boolean)}
+                  />
+                  <label
+                    htmlFor={`notes-${column}`}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    {column}
+                  </label>
                 </div>
               ))}
-              {Object.keys(selectedCells).length === 0 && (
-                <p className="text-xs text-muted-foreground">No cells selected</p>
-              )}
             </div>
+            {selectedNotesColumns.length > 0 && (
+              <div className="mt-4 p-2 bg-blue-50 rounded">
+                <p className="text-sm font-medium">Selected notes columns:</p>
+                <p className="text-sm text-gray-600">{selectedNotesColumns.join(", ")}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Data Preview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Data Preview ({previewData.length} rows)</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Click on cells to add them to notes for specific units. The selected unit column is highlighted.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto max-h-96 overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white">
-                <tr>
-                  {availableColumns.map((column) => (
-                    <th
-                      key={column}
-                      className={`text-left p-2 border-b font-medium ${
-                        column === selectedUnitColumn ? "bg-blue-100" : ""
-                      }`}
-                    >
-                      {getProperCase(column)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {previewData.map((row, rowIndex) => (
-                  <tr key={rowIndex} className="hover:bg-gray-50">
-                    {availableColumns.map((column) => {
-                      const value = row[column] || ""
-                      const isUnitColumn = column === selectedUnitColumn
-                      const isSelected = !isUnitColumn && isCellSelected(rowIndex, column, value)
-
-                      return (
-                        <td
-                          key={column}
-                          className={`p-2 border-b cursor-pointer ${isUnitColumn ? "bg-blue-50 font-medium" : ""} ${
-                            isSelected ? "bg-green-100" : ""
-                          } ${!isUnitColumn && value ? "hover:bg-yellow-50" : ""}`}
-                          onClick={() => {
-                            if (!isUnitColumn && value && selectedUnitColumn) {
-                              handleCellToggle(rowIndex, column, value)
-                            }
-                          }}
-                          title={
-                            !isUnitColumn && value
-                              ? `Click to ${isSelected ? "remove from" : "add to"} notes for unit ${row[selectedUnitColumn]}`
-                              : ""
-                          }
-                        >
-                          {value}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-between mt-6">
-        <Button variant="outline" onClick={() => router.push("/")}>
-          <ChevronLeft className="mr-2 h-4 w-4" />
-          Back to Form
-        </Button>
-        <Button onClick={handleContinue} disabled={!selectedUnitColumn}>
-          Continue to Report
-          <ChevronRight className="ml-2 h-4 w-4" />
-        </Button>
-      </div>
+      {/* Selected Cells Summary */}
+      {Object.keys(selectedCells).length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Selected Cells for Custom Notes ({Object.keys(selectedCells).length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {Object.values(selectedCells).map((cellNote, index) => (
+                <p key={index} className="text-sm text-gray-600">
+                  {cellNote}
+                </p>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
