@@ -152,32 +152,34 @@ function createConsolidatedData(originalData: OriginalExcelRow[]): ConsolidatedU
   const consolidated: ConsolidatedUnit[] = []
 
   Object.entries(unitGroups).forEach(([unit, rows]) => {
-    let kitchenAeratorCount = 0
-    let bathroomAeratorCount = 0
-    let showerHeadCount = 0
+    const kitchenColumns = new Set<string>()
+    const bathroomColumns = new Set<string>()
+    const showerColumns = new Set<string>()
 
     console.log(`Consolidation: Processing unit ${unit} with ${rows.length} rows`)
 
     rows.forEach((row, rowIndex) => {
-      // Check each column in the row for aerator installations
       Object.entries(row).forEach(([columnName, value]) => {
         if (value && isAeratorInstalled(String(value))) {
           const lowerColumnName = String(columnName).toLowerCase()
 
-          // Determine type based on column name
           if (lowerColumnName.includes("kitchen")) {
-            kitchenAeratorCount++
+            kitchenColumns.add(columnName)
             console.log(`  Found kitchen aerator in row ${rowIndex}, column "${columnName}": ${value}`)
           } else if (lowerColumnName.includes("bathroom") || lowerColumnName.includes("bath")) {
-            bathroomAeratorCount++
+            bathroomColumns.add(columnName)
             console.log(`  Found bathroom aerator in row ${rowIndex}, column "${columnName}": ${value}`)
           } else if (lowerColumnName.includes("shower")) {
-            showerHeadCount++
+            showerColumns.add(columnName)
             console.log(`  Found shower in row ${rowIndex}, column "${columnName}": ${value}`)
           }
         }
       })
     })
+
+    const kitchenAeratorCount = kitchenColumns.size
+    const bathroomAeratorCount = bathroomColumns.size
+    const showerHeadCount = showerColumns.size
 
     console.log(
       `Consolidation: Unit ${unit} totals - Kitchen: ${kitchenAeratorCount}, Bathroom: ${bathroomAeratorCount}, Shower: ${showerHeadCount}`,
@@ -209,7 +211,6 @@ function isAeratorInstalled(value: string): boolean {
 
   const lowerValue = value.toLowerCase().trim()
 
-  // Check for installation indicators
   return (
     lowerValue === "male" ||
     lowerValue === "female" ||
