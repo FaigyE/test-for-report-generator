@@ -109,7 +109,7 @@ function findUnitValue(row: OriginalExcelRow): string | null {
 function isValidUnit(unit: string): boolean {
   if (!unit || unit.trim() === "") return false
 
-  const lowerUnit = unit.toLowerCase().trim()
+  const lowerUnit = String(unit).toLowerCase().trim()
   const invalidValues = [
     "total",
     "sum",
@@ -162,7 +162,7 @@ function createConsolidatedData(originalData: OriginalExcelRow[]): ConsolidatedU
       // Check each column in the row for aerator installations
       Object.entries(row).forEach(([columnName, value]) => {
         if (value && isAeratorInstalled(String(value))) {
-          const lowerColumnName = columnName.toLowerCase()
+          const lowerColumnName = String(columnName).toLowerCase()
 
           // Determine type based on column name
           if (lowerColumnName.includes("kitchen")) {
@@ -205,7 +205,7 @@ function createConsolidatedData(originalData: OriginalExcelRow[]): ConsolidatedU
 }
 
 function isAeratorInstalled(value: string): boolean {
-  if (!value) return false
+  if (!value || typeof value !== "string") return false
 
   const lowerValue = value.toLowerCase().trim()
 
