@@ -1,254 +1,224 @@
-import type { InstallationData } from "./types"
+import * as XLSX from "xlsx"
 
-/**
- * Parses an Excel file by first converting it to CSV format internally,
- * then using the same processing logic as CSV files
- * @param file The Excel file to parse
- * @returns A promise that resolves to the parsed data
- */
-export async function parseExcelFile(file: File): Promise<InstallationData[]> {
+// Interface for the original Excel row data
+interface OriginalExcelRow {
+  [key: string]: any
+}
+
+export interface ConsolidatedUnit {
+  unit: string
+  kitchenAeratorCount: number
+  bathroomAeratorCount: number
+  showerHeadCount: number
+}
+
+export async function parseExcelFile(file: File): Promise<OriginalExcelRow[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
 
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer)
-
-        // Dynamically import xlsx library
-        const XLSX = await import("xlsx")
-
-        // Parse the Excel file
         const workbook = XLSX.read(data, { type: "array" })
 
-        // Get the first sheet
+        // Get the first worksheet
         const firstSheetName = workbook.SheetNames[0]
         const worksheet = workbook.Sheets[firstSheetName]
 
-        console.log("Excel: Converting first sheet to CSV format...")
-        console.log("Excel: Sheet name:", firstSheetName)
-        console.log("Excel: Sheet range:", worksheet["!ref"])
+        // Convert to JSON with header row
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
 
-        // Convert the Excel sheet to CSV format
-        const csvString = XLSX.utils.sheet_to_csv(worksheet, {
-          FS: ",", // Field separator
-          RS: "\n", // Record separator
-          dateNF: "yyyy-mm-dd", // Date format
-          strip: false, // Don't strip whitespace - we want to detect empty cells
-        })
+        console.log("Excel Parser: Processing file", file.name)
+        console.log("Excel Parser: Extracted", jsonData.length, "rows from Excel")
 
-        console.log("Excel: Converted to CSV, length:", csvString.length)
-        console.log("Excel: First 500 characters of CSV:", csvString.substring(0, 500))
+        if (jsonData.length === 0) {
+          throw new Error("Excel file is empty")
+        }
 
-        // Now parse the CSV string using the same logic as CSV files
-        // Import Papa Parse dynamically
-        const Papa = await import("papaparse")
+        // Get headers from first row
+        const headers = jsonData[0] as string[]
+        console.log("Excel Parser: Analyzing headers:", headers)
 
-        const parsedCsvData = await new Promise<any[]>((csvResolve, csvReject) => {
-          Papa.default.parse(csvString, {
-            header: true,
-            skipEmptyLines: false, // Don't skip empty lines so we can detect them
-            complete: (results) => {
-              console.log("Excel->CSV: Parsing complete, raw data length:", results.data.length)
+        // Convert rows to objects using headers
+        const originalData: OriginalExcelRow[] = []
 
-              // Helper function to find the unit column by looking for headers containing "unit"
-              const findUnitColumn = (headers: string[]): string => {
-                // First, look for any column header that contains "unit" (case-insensitive)
-                for (const header of headers) {
-                  if (header.toLowerCase().includes("unit")) {
-                    console.log(`Excel->CSV: Found unit column by keyword: "${header}"`)
-                    return header
-                  }
-                }
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i]
+          if (!row || row.length === 0) continue
 
-                // Then try other apartment-related keywords
-                const apartmentKeywords = ["apt", "apartment", "room"]
-                for (const header of headers) {
-                  const headerLower = header.toLowerCase()
-                  for (const keyword of apartmentKeywords) {
-                    if (headerLower.includes(keyword)) {
-                      console.log(`Excel->CSV: Found unit column by apartment keyword "${keyword}": "${header}"`)
-                      return header
-                    }
-                  }
-                }
-
-                // If no suitable column found, use the first column as a fallback
-                const firstHeader = headers[0]
-                console.log(`Excel->CSV: No unit column found, using first column as fallback: "${firstHeader}"`)
-                return firstHeader
-              }
-
-              // Find the unit column once using the first row's headers
-              if (results.data.length === 0) {
-                console.log("Excel->CSV: No data rows found")
-                csvResolve([])
-                return
-              }
-
-              const headers = Object.keys(results.data[0])
-              const unitColumnName = findUnitColumn(headers)
-
-              // Apply the same filtering logic as CSV files
-              const filteredData = []
-
-              for (let i = 0; i < results.data.length; i++) {
-                const row: any = results.data[i]
-
-                // Use the pre-determined unit column
-                const unitValue = row[unitColumnName]
-
-                // Log each row for debugging
-                console.log(
-                  `Excel->CSV Row ${i + 1}: Unit column="${unitColumnName}", Unit value="${unitValue}" (type: ${typeof unitValue}, length: ${unitValue ? String(unitValue).length : "null"})`,
-                )
-
-                // Check if unit is truly empty - be very strict about this
-                if (
-                  unitValue === undefined ||
-                  unitValue === null ||
-                  unitValue === "" ||
-                  (typeof unitValue === "string" && unitValue.trim() === "") ||
-                  String(unitValue).trim() === ""
-                ) {
-                  console.log(
-                    `Excel->CSV STOPPING: Found empty unit at row ${i + 1}. Unit value: "${unitValue}". Processed ${filteredData.length} valid rows.`,
-                  )
-                  break // Stop processing immediately when we find an empty unit
-                }
-
-                // Convert to string and trim for further checks
-                const trimmedUnit = String(unitValue).trim()
-
-                // If after trimming it's empty, stop
-                if (trimmedUnit === "") {
-                  console.log(
-                    `Excel->CSV STOPPING: Found empty unit after trimming at row ${i + 1}. Original: "${unitValue}". Processed ${filteredData.length} valid rows.`,
-                  )
-                  break
-                }
-
-                // Filter out rows with non-apartment values (often headers, totals, etc.) but continue processing
-                const lowerUnit = trimmedUnit.toLowerCase()
-                const invalidValues = [
-                  "total",
-                  "sum",
-                  "average",
-                  "avg",
-                  "count",
-                  "header",
-                  "grand total",
-                  "subtotal",
-                  "summary",
-                  "totals",
-                  "grand",
-                  "sub total",
-                ]
-
-                if (invalidValues.some((val) => lowerUnit.includes(val))) {
-                  console.log(
-                    `Excel->CSV: Skipping invalid unit "${trimmedUnit}" at row ${i + 1} (contains: ${invalidValues.find((val) => lowerUnit.includes(val))})`,
-                  )
-                  continue // Skip this row but continue processing
-                }
-
-                // Also check if this looks like a total row by examining only the first 5 values in the row
-                const allKeys = Object.keys(row)
-                const first5Keys = allKeys.slice(0, 5)
-                const first5Values = first5Keys.map((key) =>
-                  String(row[key] || "")
-                    .toLowerCase()
-                    .trim(),
-                )
-                const containsTotalKeyword = first5Values.some((v) =>
-                  invalidValues.some((invalid) => v.includes(invalid)),
-                )
-
-                if (containsTotalKeyword) {
-                  console.log(
-                    `Excel->CSV: Skipping total row "${trimmedUnit}" at row ${i + 1} (first 5 columns contain total keywords)`,
-                  )
-                  console.log(`Excel->CSV: First 5 column values:`, first5Values)
-                  continue // Skip this row but continue processing
-                }
-
-                console.log(`Excel->CSV: Adding valid unit: "${trimmedUnit}"`)
-                filteredData.push(row)
-              }
-
-              console.log(`Excel->CSV: Final result: ${filteredData.length} valid units processed`)
-
-              // Sort the results using the pre-determined unit column
-              const sortedData = filteredData.sort((a, b) => {
-                const unitA = a[unitColumnName]
-                const unitB = b[unitColumnName]
-
-                // Try to parse as numbers first
-                const numA = Number.parseInt(unitA)
-                const numB = Number.parseInt(unitB)
-
-                // If both are valid numbers, sort numerically
-                if (!isNaN(numA) && !isNaN(numB)) {
-                  return numA - numB
-                }
-
-                // Otherwise, sort alphabetically
-                return String(unitA).localeCompare(String(unitB), undefined, { numeric: true, sensitivity: "base" })
-              })
-
-              csvResolve(sortedData)
-            },
-            error: (error) => csvReject(error),
-          })
-        })
-
-        // Convert the parsed data to the expected format
-        const formattedData = parsedCsvData.map((row: any) => {
-          const formattedRow: Record<string, string> = {}
-
-          Object.keys(row).forEach((key) => {
-            // Handle null/undefined values
-            let value = row[key]
-            if (value === null || value === undefined) {
-              value = ""
-            } else {
-              value = String(value).trim()
-            }
-
-            // Preserve the original column name
-            formattedRow[key] = value
-
-            // Also add lowercase version for case-insensitive matching
-            formattedRow[key.toLowerCase()] = value
-
-            // Add common variations of column names for better matching
-            if (key.toLowerCase().includes("kitchen") && key.toLowerCase().includes("aerator")) {
-              formattedRow["Kitchen Aerator"] = value
-            }
-            if (key.toLowerCase().includes("bathroom") && key.toLowerCase().includes("aerator")) {
-              formattedRow["Bathroom aerator"] = value
-            }
-            if (key.toLowerCase().includes("shower") && key.toLowerCase().includes("head")) {
-              formattedRow["Shower Head"] = value
+          const rowObject: OriginalExcelRow = {}
+          headers.forEach((header, index) => {
+            if (header) {
+              rowObject[header] = row[index] || ""
             }
           })
 
-          return formattedRow as InstallationData
-        })
+          // Find unit column
+          const unitValue = findUnitValue(rowObject)
+          if (unitValue && isValidUnit(unitValue)) {
+            originalData.push(rowObject)
+          }
+        }
 
-        console.log("Excel->CSV: Final formatted data sample:", formattedData.slice(0, 3))
-        console.log("Excel->CSV: Final formatted data last 3:", formattedData.slice(-3))
+        console.log("Excel Parser: Preserved", originalData.length, "original rows with all", headers.length, "columns")
 
-        resolve(formattedData)
+        // Save original data for CSV preview (with all columns)
+        localStorage.setItem("rawInstallationData", JSON.stringify(originalData))
+
+        const consolidatedData = createConsolidatedData(originalData)
+
+        localStorage.setItem("consolidatedData", JSON.stringify(consolidatedData))
+
+        // Also save a toilet count (can be calculated or set to 0 for now)
+        localStorage.setItem("toiletCount", JSON.stringify(0))
+
+        console.log("Excel Parser: Created", consolidatedData.length, "consolidated units")
+
+        resolve(originalData)
       } catch (error) {
-        console.error("Excel parsing error:", error)
+        console.error("Excel Parser: Error processing file:", error)
         reject(error)
       }
     }
 
-    reader.onerror = () => {
-      reject(new Error("Error reading Excel file"))
-    }
-
+    reader.onerror = () => reject(new Error("Failed to read Excel file"))
     reader.readAsArrayBuffer(file)
   })
+}
+
+function findUnitValue(row: OriginalExcelRow): string | null {
+  // Look for unit column by common names
+  const unitKeys = ["unit", "Unit", "UNIT", "apt", "apartment", "room", "Room"]
+
+  for (const key of unitKeys) {
+    if (row[key] !== undefined && row[key] !== null && row[key] !== "") {
+      return String(row[key]).trim()
+    }
+  }
+
+  // Look for any key containing "unit"
+  for (const key of Object.keys(row)) {
+    if (key.toLowerCase().includes("unit") && row[key] !== undefined && row[key] !== null && row[key] !== "") {
+      return String(row[key]).trim()
+    }
+  }
+
+  return null
+}
+
+function isValidUnit(unit: string): boolean {
+  if (!unit || unit.trim() === "") return false
+
+  const lowerUnit = unit.toLowerCase().trim()
+  const invalidValues = [
+    "total",
+    "sum",
+    "average",
+    "avg",
+    "count",
+    "header",
+    "n/a",
+    "na",
+    "grand total",
+    "subtotal",
+    "summary",
+    "totals",
+    "grand",
+    "sub total",
+  ]
+
+  return !invalidValues.some((val) => lowerUnit.includes(val))
+}
+
+function createConsolidatedData(originalData: OriginalExcelRow[]): ConsolidatedUnit[] {
+  console.log("Consolidation: Starting with", originalData.length, "original rows")
+
+  // Group rows by unit
+  const unitGroups: { [unit: string]: OriginalExcelRow[] } = {}
+
+  originalData.forEach((row) => {
+    const unit = findUnitValue(row)
+    if (unit) {
+      if (!unitGroups[unit]) {
+        unitGroups[unit] = []
+      }
+      unitGroups[unit].push(row)
+    }
+  })
+
+  console.log("Consolidation: Grouped into", Object.keys(unitGroups).length, "units")
+
+  // Create consolidated units by counting installations across all rows for each unit
+  const consolidated: ConsolidatedUnit[] = []
+
+  Object.entries(unitGroups).forEach(([unit, rows]) => {
+    let kitchenAeratorCount = 0
+    let bathroomAeratorCount = 0
+    let showerHeadCount = 0
+
+    console.log(`Consolidation: Processing unit ${unit} with ${rows.length} rows`)
+
+    rows.forEach((row, rowIndex) => {
+      // Check each column in the row for aerator installations
+      Object.entries(row).forEach(([columnName, value]) => {
+        if (value && isAeratorInstalled(String(value))) {
+          const lowerColumnName = columnName.toLowerCase()
+
+          // Determine type based on column name
+          if (lowerColumnName.includes("kitchen")) {
+            kitchenAeratorCount++
+            console.log(`  Found kitchen aerator in row ${rowIndex}, column "${columnName}": ${value}`)
+          } else if (lowerColumnName.includes("bathroom") || lowerColumnName.includes("bath")) {
+            bathroomAeratorCount++
+            console.log(`  Found bathroom aerator in row ${rowIndex}, column "${columnName}": ${value}`)
+          } else if (lowerColumnName.includes("shower")) {
+            showerHeadCount++
+            console.log(`  Found shower in row ${rowIndex}, column "${columnName}": ${value}`)
+          }
+        }
+      })
+    })
+
+    console.log(
+      `Consolidation: Unit ${unit} totals - Kitchen: ${kitchenAeratorCount}, Bathroom: ${bathroomAeratorCount}, Shower: ${showerHeadCount}`,
+    )
+
+    consolidated.push({
+      unit,
+      kitchenAeratorCount,
+      bathroomAeratorCount,
+      showerHeadCount,
+    })
+  })
+
+  // Sort consolidated data
+  return consolidated.sort((a, b) => {
+    const numA = Number.parseInt(a.unit)
+    const numB = Number.parseInt(b.unit)
+
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA - numB
+    }
+
+    return a.unit.localeCompare(b.unit, undefined, { numeric: true, sensitivity: "base" })
+  })
+}
+
+function isAeratorInstalled(value: string): boolean {
+  if (!value) return false
+
+  const lowerValue = value.toLowerCase().trim()
+
+  // Check for installation indicators
+  return (
+    lowerValue === "male" ||
+    lowerValue === "female" ||
+    lowerValue === "insert" ||
+    lowerValue.includes("gpm") ||
+    lowerValue === "1" ||
+    lowerValue === "2" ||
+    lowerValue === "yes" ||
+    lowerValue === "installed" ||
+    lowerValue === "x"
+  )
 }
