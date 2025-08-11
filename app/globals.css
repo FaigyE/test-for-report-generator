@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 196 100% 47%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 196 100% 47%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 196 100% 47%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 196 100% 47%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* PDF styles */
+.pdf-container {
+  background-color: white;
+  color: black;
+  font-family: Arial, sans-serif;
+}
+
+.pdf-container img {
+  max-width: 100%;
+}
+
+.page-break {
+  page-break-after: always;
+  break-after: page;
+  height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.report-page {
+  position: relative;
+  padding: 20px;
+  margin-bottom: 30px;
+  page-break-after: always;
+  break-after: page;
+}
+
+.footer-container {
+  position: relative;
+  margin-top: 30px;
+  width: 100%;
+}
+
+/* Print styles */
+@media print {
+  /* Hide elements that shouldn't be printed */
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Ensure page breaks work properly */
+  .page-break {
+    page-break-after: always;
+    break-after: page;
+    height: 0;
+  }
+
+  .report-page {
+    page-break-after: always;
+    break-after: page;
+    position: relative;
+    height: 11in;
+    width: 8.5in;
+    padding: 0.5in;
+    margin-bottom: 0;
+    overflow: visible;
+  }
+
+  /* Ensure tables don't break across pages */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Table styling to match preview */
+  th,
+  td {
+    border-bottom: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+  }
+
+  td.text-center,
+  th.text-center,
+  td[align="center"] {
+    text-align: center;
+  }
+
+  /* Ensure em dashes are centered */ \
+  td:contains("—") {
+    text-align: center;
+  }
+
+  /* Ensure images print properly */
+  img {
+    max-width: 100% !important;
+  }
+
+  /* Remove background colors and shadows for better printing */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Ensure footer stays at bottom */
+  .footer-container {
+    position: absolute;
+    bottom: 0.5in;
+    left: 0;
+    right: 0;
+    width: 100%;
+  }
+
+  /* Make hidden content visible for printing */
+  .print-content.hidden {
+    display: block !important;
+  }
+}
