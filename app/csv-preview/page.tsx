@@ -146,12 +146,19 @@ export default function CsvPreviewPage() {
 
     const consolidatedData = createConsolidatedDataFromRaw(rawData, selectedUnitColumn)
 
+    console.log("CSV Preview: About to save consolidated data:", consolidatedData)
+    console.log("CSV Preview: Consolidated data length:", consolidatedData.length)
+    console.log("CSV Preview: Sample consolidated unit:", consolidatedData[0])
+
     // Store processed data
     localStorage.setItem("installationData", JSON.stringify(processedData.installationData))
     localStorage.setItem("toiletCount", JSON.stringify(processedData.toiletCount))
     localStorage.setItem("selectedNotesColumns", JSON.stringify(selectedNotesColumns))
     localStorage.setItem("selectedCells", JSON.stringify(selectedCells))
     localStorage.setItem("consolidatedData", JSON.stringify(consolidatedData))
+
+    const savedData = localStorage.getItem("consolidatedData")
+    console.log("CSV Preview: Verified saved data:", savedData ? JSON.parse(savedData).length : "null", "units")
 
     console.log("CSV Preview: Saved processed data and consolidated data, navigating to report")
     // Navigate to report
