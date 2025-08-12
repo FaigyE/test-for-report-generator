@@ -23,6 +23,21 @@ export default function ReportDetailPage({ consolidatedData = [], isPreview = tr
     }
   }, [])
 
+  useEffect(() => {
+    console.log("ReportDetailPage: Received consolidated data:", consolidatedData.length, "units")
+    if (consolidatedData.length > 0) {
+      console.log("ReportDetailPage: First unit sample:", {
+        unit: consolidatedData[0].unit,
+        kitchenCount: consolidatedData[0].kitchenAeratorCount,
+        kitchenType: typeof consolidatedData[0].kitchenAeratorCount,
+        bathroomCount: consolidatedData[0].bathroomAeratorCount,
+        bathroomType: typeof consolidatedData[0].bathroomAeratorCount,
+        showerCount: consolidatedData[0].showerHeadCount,
+        showerType: typeof consolidatedData[0].showerHeadCount,
+      })
+    }
+  }, [consolidatedData])
+
   const sortedData = [...consolidatedData].sort((a, b) => {
     const numA = Number.parseInt(a.unit)
     const numB = Number.parseInt(b.unit)
