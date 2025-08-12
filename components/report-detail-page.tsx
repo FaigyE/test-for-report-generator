@@ -35,6 +35,8 @@ export default function ReportDetailPage({ consolidatedData = [], isPreview = tr
         showerCount: consolidatedData[0].showerHeadCount,
         showerType: typeof consolidatedData[0].showerHeadCount,
       })
+
+      console.log("ReportDetailPage: About to process", consolidatedData.length, "units for rendering")
     }
   }, [consolidatedData])
 
@@ -48,6 +50,8 @@ export default function ReportDetailPage({ consolidatedData = [], isPreview = tr
 
     return a.unit.localeCompare(b.unit, undefined, { numeric: true, sensitivity: "base" })
   })
+
+  console.log("ReportDetailPage: Sorted data length:", sortedData.length)
 
   // Always show all aerator columns like in Foxcroft report
   const hasKitchenAerators = true
@@ -95,7 +99,7 @@ export default function ReportDetailPage({ consolidatedData = [], isPreview = tr
           </thead>
           <tbody>
             {sortedData.map((item, index) => {
-              console.log(`Report Debug - Unit ${item.unit}:`, {
+              console.log(`🔍 UNIT DEBUG ${item.unit} - Values:`, {
                 kitchenAeratorCount: item.kitchenAeratorCount,
                 kitchenType: typeof item.kitchenAeratorCount,
                 bathroomAeratorCount: item.bathroomAeratorCount,
@@ -108,7 +112,7 @@ export default function ReportDetailPage({ consolidatedData = [], isPreview = tr
               const bathroomAerator = getAeratorDescription(item.bathroomAeratorCount, "bathroom")
               const shower = getAeratorDescription(item.showerHeadCount, "shower")
 
-              console.log(`Report Debug - Unit ${item.unit} descriptions:`, {
+              console.log(`🔍 UNIT DEBUG ${item.unit} - Descriptions:`, {
                 kitchen: kitchenAerator,
                 bathroom: bathroomAerator,
                 shower: shower,
