@@ -42,16 +42,13 @@ export default function ReportPage() {
         setConsolidatedData(parsedData)
         console.log("Report: Loaded consolidated data:", parsedData.length, "units")
 
-        console.log("Report Debug - First 3 units:")
-        parsedData.slice(0, 3).forEach((unit: ConsolidatedUnit, index: number) => {
-          console.log(`Unit ${index + 1} (${unit.unit}):`, {
-            kitchenAeratorCount: unit.kitchenAeratorCount,
-            kitchenType: typeof unit.kitchenAeratorCount,
-            bathroomAeratorCount: unit.bathroomAeratorCount,
-            bathroomType: typeof unit.bathroomAeratorCount,
-            showerHeadCount: unit.showerHeadCount,
-            showerType: typeof unit.showerHeadCount,
-          })
+        console.log("Report Debug - First 10 units with detailed values:")
+        parsedData.slice(0, 10).forEach((unit: ConsolidatedUnit, index: number) => {
+          console.log(`Unit ${index + 1} (${unit.unit}):`)
+          console.log("  Kitchen Count:", unit.kitchenAeratorCount, "Type:", typeof unit.kitchenAeratorCount)
+          console.log("  Bathroom Count:", unit.bathroomAeratorCount, "Type:", typeof unit.bathroomAeratorCount)
+          console.log("  Shower Count:", unit.showerHeadCount, "Type:", typeof unit.showerHeadCount)
+          console.log("  Full Unit Object:", JSON.stringify(unit, null, 2))
         })
       }
 
