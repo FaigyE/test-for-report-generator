@@ -22,6 +22,7 @@ export default function CsvPreviewPage() {
   const [selectedNotesColumns, setSelectedNotesColumns] = useState<string[]>([])
   const [selectedCells, setSelectedCells] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [toiletCount, setToiletCount] = useState<number>(0)
 
   const getUniqueColumns = (data: CsvPreviewData[]): string[] => {
     if (!data || data.length === 0) {
@@ -143,66 +144,19 @@ export default function CsvPreviewPage() {
 
     // Filter and process the data
     const processedData = processInstallationData(rawData, selectedUnitColumn, selectedNotesColumns, selectedCells)
-
     const consolidatedData = createConsolidatedDataFromRaw(rawData, selectedUnitColumn)
 
-    console.log("CSV Preview: About to save consolidated data:")
-    console.log("First few units:", consolidatedData.slice(0, 3))
-    consolidatedData.slice(0, 3).forEach((unit, index) => {
-      console.log(`Unit ${index}:`, {
-        unit: unit.unit,
-        kitchenAeratorCount: unit.kitchenAeratorCount,
-        kitchenType: typeof unit.kitchenAeratorCount,
-        bathroomAeratorCount: unit.bathroomAeratorCount,
-        bathroomType: typeof unit.bathroomAeratorCount,
-        showerHeadCount: unit.showerHeadCount,
-        showerType: typeof unit.showerHeadCount,
-      })
-    })
+    console.log("CSV Preview: Created", consolidatedData.length, "consolidated units")
 
-    console.log("CSV Preview: Detailed first unit object:", JSON.stringify(consolidatedData[0], null, 2))
-
-    // Clear any existing data first
-    localStorage.removeItem("consolidatedData")
-    console.log("CSV Preview: Cleared existing consolidated data")
-
-    // Save consolidated data
+    // Save data to localStorage
+    localStorage.setItem("installationData", JSON.stringify(processedData.installationData))
     localStorage.setItem("consolidatedData", JSON.stringify(consolidatedData))
-    console.log("CSV Preview: Saved consolidated data to localStorage")
+    localStorage.setItem("toiletCount", processedData.toiletCount.toString())
+    localStorage.setItem("selectedNotesColumns", JSON.stringify(selectedNotesColumns))
+    localStorage.setItem("selectedCells", JSON.stringify(selectedCells))
 
-    // Immediate verification
-    const savedData = localStorage.getItem("consolidatedData")
-    if (savedData) {
-      const parsedSaved = JSON.parse(savedData)
-      console.log("CSV Preview: Verified saved data length:", parsedSaved.length)
-      console.log("CSV Preview: Verified saved data (first unit):", parsedSaved[0])
-      console.log("CSV Preview: Detailed saved first unit:", JSON.stringify(parsedSaved[0], null, 2))
-      console.log(
-        "CSV Preview: Kitchen count from saved data:",
-        parsedSaved[0].kitchenAeratorCount,
-        "Type:",
-        typeof parsedSaved[0].kitchenAeratorCount,
-      )
-      console.log(
-        "CSV Preview: Bathroom count from saved data:",
-        parsedSaved[0].bathroomAeratorCount,
-        "Type:",
-        typeof parsedSaved[0].bathroomAeratorCount,
-      )
-      console.log(
-        "CSV Preview: Shower count from saved data:",
-        parsedSaved[0].showerHeadCount,
-        "Type:",
-        typeof parsedSaved[0].showerHeadCount,
-      )
-    } else {
-      console.error("CSV Preview: Failed to save consolidated data to localStorage!")
-    }
-
-    console.log("CSV Preview: Saved processed data and consolidated data, navigating to report in 100ms")
-    setTimeout(() => {
-      router.push("/report")
-    }, 100)
+    console.log("CSV Preview: Saved all data to localStorage, navigating to report")
+    router.push("/report")
   }
 
   // Process installation data with selected configuration
@@ -284,6 +238,7 @@ export default function CsvPreviewPage() {
 
     // Save the selected cell data to localStorage for the notes section to use
     const toiletData = countToilets(data)
+    setToiletCount(toiletData.count)
 
     return {
       installationData: filteredData,
