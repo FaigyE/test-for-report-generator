@@ -160,6 +160,8 @@ export default function CsvPreviewPage() {
       })
     })
 
+    console.log("CSV Preview: Detailed first unit object:", JSON.stringify(consolidatedData[0], null, 2))
+
     // Save consolidated data
     localStorage.setItem("consolidatedData", JSON.stringify(consolidatedData))
 
@@ -167,6 +169,25 @@ export default function CsvPreviewPage() {
     if (savedData) {
       const parsedSaved = JSON.parse(savedData)
       console.log("CSV Preview: Verified saved data (first unit):", parsedSaved[0])
+      console.log("CSV Preview: Detailed saved first unit:", JSON.stringify(parsedSaved[0], null, 2))
+      console.log(
+        "CSV Preview: Kitchen count from saved data:",
+        parsedSaved[0].kitchenAeratorCount,
+        "Type:",
+        typeof parsedSaved[0].kitchenAeratorCount,
+      )
+      console.log(
+        "CSV Preview: Bathroom count from saved data:",
+        parsedSaved[0].bathroomAeratorCount,
+        "Type:",
+        typeof parsedSaved[0].bathroomAeratorCount,
+      )
+      console.log(
+        "CSV Preview: Shower count from saved data:",
+        parsedSaved[0].showerHeadCount,
+        "Type:",
+        typeof parsedSaved[0].showerHeadCount,
+      )
     }
 
     console.log("CSV Preview: Saved processed data and consolidated data, navigating to report")
