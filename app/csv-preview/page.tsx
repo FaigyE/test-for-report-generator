@@ -162,12 +162,19 @@ export default function CsvPreviewPage() {
 
     console.log("CSV Preview: Detailed first unit object:", JSON.stringify(consolidatedData[0], null, 2))
 
+    // Clear any existing data first
+    localStorage.removeItem("consolidatedData")
+    console.log("CSV Preview: Cleared existing consolidated data")
+
     // Save consolidated data
     localStorage.setItem("consolidatedData", JSON.stringify(consolidatedData))
+    console.log("CSV Preview: Saved consolidated data to localStorage")
 
+    // Immediate verification
     const savedData = localStorage.getItem("consolidatedData")
     if (savedData) {
       const parsedSaved = JSON.parse(savedData)
+      console.log("CSV Preview: Verified saved data length:", parsedSaved.length)
       console.log("CSV Preview: Verified saved data (first unit):", parsedSaved[0])
       console.log("CSV Preview: Detailed saved first unit:", JSON.stringify(parsedSaved[0], null, 2))
       console.log(
@@ -188,11 +195,14 @@ export default function CsvPreviewPage() {
         "Type:",
         typeof parsedSaved[0].showerHeadCount,
       )
+    } else {
+      console.error("CSV Preview: Failed to save consolidated data to localStorage!")
     }
 
-    console.log("CSV Preview: Saved processed data and consolidated data, navigating to report")
-    // Navigate to report
-    router.push("/report")
+    console.log("CSV Preview: Saved processed data and consolidated data, navigating to report in 100ms")
+    setTimeout(() => {
+      router.push("/report")
+    }, 100)
   }
 
   // Process installation data with selected configuration
