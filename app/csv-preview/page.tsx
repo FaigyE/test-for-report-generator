@@ -146,19 +146,28 @@ export default function CsvPreviewPage() {
 
     const consolidatedData = createConsolidatedDataFromRaw(rawData, selectedUnitColumn)
 
-    console.log("CSV Preview: About to save consolidated data:", consolidatedData)
-    console.log("CSV Preview: Consolidated data length:", consolidatedData.length)
-    console.log("CSV Preview: Sample consolidated unit:", consolidatedData[0])
+    console.log("CSV Preview: About to save consolidated data:")
+    console.log("First few units:", consolidatedData.slice(0, 3))
+    consolidatedData.slice(0, 3).forEach((unit, index) => {
+      console.log(`Unit ${index}:`, {
+        unit: unit.unit,
+        kitchenAeratorCount: unit.kitchenAeratorCount,
+        kitchenType: typeof unit.kitchenAeratorCount,
+        bathroomAeratorCount: unit.bathroomAeratorCount,
+        bathroomType: typeof unit.bathroomAeratorCount,
+        showerHeadCount: unit.showerHeadCount,
+        showerType: typeof unit.showerHeadCount,
+      })
+    })
 
-    // Store processed data
-    localStorage.setItem("installationData", JSON.stringify(processedData.installationData))
-    localStorage.setItem("toiletCount", JSON.stringify(processedData.toiletCount))
-    localStorage.setItem("selectedNotesColumns", JSON.stringify(selectedNotesColumns))
-    localStorage.setItem("selectedCells", JSON.stringify(selectedCells))
+    // Save consolidated data
     localStorage.setItem("consolidatedData", JSON.stringify(consolidatedData))
 
     const savedData = localStorage.getItem("consolidatedData")
-    console.log("CSV Preview: Verified saved data:", savedData ? JSON.parse(savedData).length : "null", "units")
+    if (savedData) {
+      const parsedSaved = JSON.parse(savedData)
+      console.log("CSV Preview: Verified saved data (first unit):", parsedSaved[0])
+    }
 
     console.log("CSV Preview: Saved processed data and consolidated data, navigating to report")
     // Navigate to report
