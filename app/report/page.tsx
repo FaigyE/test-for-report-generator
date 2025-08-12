@@ -103,6 +103,15 @@ export default function ReportPage() {
         </TabsList>
 
         <TabsContent value="details">
+          {(() => {
+            console.log("Report: About to render ReportDetailPage with:", {
+              consolidatedDataLength: consolidatedData.length,
+              firstUnit: consolidatedData[0] || null,
+              consolidatedDataType: typeof consolidatedData,
+              isArray: Array.isArray(consolidatedData),
+            })
+            return null
+          })()}
           <ReportDetailPage consolidatedData={consolidatedData} isPreview={true} />
         </TabsContent>
       </Tabs>
